@@ -1,3 +1,6 @@
 /.ipynb_checkpoints
 /checkpoints
 /__pycache__
+/runs
+/runs_maximgan
+.DS_Store

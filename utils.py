@@ -1,8 +1,12 @@
 from pathlib import Path
-from re import X
+import socket
+from datetime import datetime
+import os
+
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+import torch.nn as nn
 from torchvision.utils import make_grid
 from torchvision import datasets, transforms
 import torch.distributions as td
@@ -14,10 +18,12 @@ def display(x, ax=None):
     x (Tensor): B, C, W, H
     """
     x = x.detach().cpu()
-    x = make_grid(x).permute(1, 2, 0)
+    x = make_grid(x)[0]
+    print(x.shape)
+
     if ax is None:
-        _, ax = plt.subplots()
-    ax.imshow(x)
+        _, ax = plt.subplots(figsize=(x.shape[1]/30, x.shape[0]/30))
+    ax.imshow(x, cmap='gray')
     ax.axis('off')
     
 
@@ -70,7 +76,7 @@ def plot_latent_images(model, n, digit_size=28, ax=None):
     for i, yi in enumerate(grid_x):
         for j, xi in enumerate(grid_y):
             z = torch.tensor([[xi, yi]])
-            x = model.generator(z)
+            x = model(z)
             digit = torch.reshape(x[0], (digit_size, digit_size))
             image[i * digit_size: (i + 1) * digit_size,
                 j * digit_size: (j + 1) * digit_size] = digit.detach().cpu().numpy()
@@ -80,3 +86,29 @@ def plot_latent_images(model, n, digit_size=28, ax=None):
     im = ax.imshow(image, cmap='Greys_r')
     ax.axis('Off')
     return im
+
+
+
+class Reshape(nn.Module):
+    def __init__(self, *args):
+        super(Reshape, self).__init__()
+        self.shape = args
+
+    def forward(self, x):
+        return x.view((-1, *self.shape))
+
+
+def create_digit_grid(dataset, cols=6):
+    labels = dataset.targets
+    result = []
+    for digit in range(10):
+        idx = np.where(labels == digit)[0]
+        selected_idx = np.random.choice(idx, cols)
+        result += [dataset[i][0] for i in selected_idx]
+    return torch.cat(result, dim=0).unsqueeze(1)
+
+
+def get_logdir():
+    current_time = datetime.now().strftime('%b%d_%H-%M-%S')
+    return os.path.join(
+        'runs_maximgan', current_time + '_' + socket.gethostname())
