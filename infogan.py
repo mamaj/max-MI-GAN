@@ -1,7 +1,3 @@
-# Modifiing info gan to take images as codes.
-# taken from https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/infogan/infogan.py
-
-
 import argparse
 import os
 import numpy as np
@@ -18,8 +14,6 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
-
-from torch.utils.tensorboard import SummaryWriter
 
 os.makedirs("images/static/", exist_ok=True)
 os.makedirs("images/varying_c1/", exist_ok=True)

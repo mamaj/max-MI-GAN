@@ -4,3 +4,6 @@
 /runs
 /runs_maximgan
 .DS_Store
+/venv
+/images
+/data

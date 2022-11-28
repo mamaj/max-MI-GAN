@@ -108,7 +108,7 @@ def create_digit_grid(dataset, cols=6):
     return torch.cat(result, dim=0).unsqueeze(1)
 
 
-def get_logdir():
+def get_logdir(name='runs_maximgan'):
     current_time = datetime.now().strftime('%b%d_%H-%M-%S')
     return os.path.join(
-        'runs_maximgan', current_time + '_' + socket.gethostname())
+        name, current_time + '_' + socket.gethostname())
