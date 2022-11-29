@@ -9,7 +9,7 @@ import math
 import itertools
 
 import torchvision.transforms as transforms
-from torchvision.utils import save_image
+from torchvision.utils import save_image, make_grid
 
 from torch.utils.data import DataLoader
 from torchvision import datasets
@@ -21,7 +21,7 @@ import torch
 
 from torch.utils.tensorboard import SummaryWriter
 
-from utils import create_digit_grid, get_logdir
+from utils import create_digit_grid, get_logdir, show, display
 
 # os.makedirs("images/static/", exist_ok=True)
 # os.makedirs("images/varying_c1/", exist_ok=True)
@@ -41,10 +41,11 @@ parser.add_argument("--img_size", type=int, default=32, help="size of each image
 parser.add_argument("--small_img_size", type=int, default=8, help="size of each smaller image dimension")
 parser.add_argument("--channels", type=int, default=1, help="number of image channels")
 parser.add_argument("--sample_interval", type=int, default=200, help="interval between image sampling")
+parser.add_argument("--lambda_rec", type=float, default=0.1, help="recons loss weight")
 opt = parser.parse_args()
 print(opt)
 
-cuda = True if torch.cuda.is_available() else False
+cuda = torch.cuda.is_available()
 
 
 def weights_init_normal(m):
@@ -160,13 +161,12 @@ class Discriminator(nn.Module):
 # Loss functions
 adversarial_loss = torch.nn.MSELoss()
 small_img_loss = torch.nn.MSELoss()
-
 # categorical_loss = torch.nn.CrossEntropyLoss()
 # continuous_loss = torch.nn.MSELoss()
 
 # Loss weights
-lambda_cat = 1
-lambda_con = 0.1
+# lambda_cat = 1
+# lambda_con = 0.1
 
 # Initialize generator and discriminator
 generator = Generator()
@@ -263,9 +263,10 @@ def write_tboard(writer, it, d_loss, g_loss, info_loss):
     writer.add_scalar('loss/d', d_loss, it)
     writer.add_scalar('loss/info', info_loss, it)
     
-    writer.add_images('images/x', grid, it)
+    generator.eval()
     y = generator(static_z, grid)
-    writer.add_images('images/y', y, it)
+    writer.add_image('images/x', make_grid(grid, normalize=True), it)
+    writer.add_image('images/y', make_grid(y, normalize=True), it)
 
 
 # ----------
@@ -278,6 +279,8 @@ it = 0
 for epoch in range(opt.n_epochs):
     for i, ((imgs, _), (small_imgs, _)) in enumerate(zip(dataloader, small_dataloader)):
         it += 1
+        
+        generator.train()
         
         batch_size = imgs.shape[0]
 
@@ -298,7 +301,6 @@ for epoch in range(opt.n_epochs):
 
         # Sample noise and labels as generator input
         z = Variable(FloatTensor(np.random.normal(0, 1, (batch_size, opt.latent_dim))))
-        
         # label_input = to_categorical(np.random.randint(0, opt.n_classes, batch_size), num_columns=opt.n_classes)
         # code_input = Variable(FloatTensor(np.random.uniform(-1, 1, (batch_size, opt.code_dim))))
         
@@ -340,7 +342,7 @@ for epoch in range(opt.n_epochs):
         gen_imgs = generator(z, small_imgs)
         _, small_imgs_hat = discriminator(gen_imgs)
 
-        info_loss = small_img_loss(small_imgs, small_imgs_hat)
+        info_loss = opt.lambda_rec * small_img_loss(small_imgs, small_imgs_hat)
         info_loss.backward()
         optimizer_info.step()
 
