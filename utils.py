@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
+import torchvision.transforms.functional as F
 from torchvision.utils import make_grid
 from torchvision import datasets, transforms
 import torch.distributions as td
@@ -19,13 +20,29 @@ def display(x, ax=None):
     """
     x = x.detach().cpu()
     x = make_grid(x)[0]
-    print(x.shape)
+    # print(x.shape)
 
     if ax is None:
         _, ax = plt.subplots(figsize=(x.shape[1]/30, x.shape[0]/30))
     ax.imshow(x, cmap='gray')
     ax.axis('off')
     
+    
+
+def show(imgs):
+    if imgs.ndim == 4:
+        imgs = [img for img in imgs]
+    if not isinstance(imgs, list):
+        imgs = [imgs]
+    # fig, axs = plt.subplots(nrows=2, ncols=len(imgs)//2, squeeze=True, tight_layout=True)
+    # for i, (img, ax) in enumerate(zip(imgs, axs.flat)):
+    #     img = img.detach()
+    #     img = F.to_pil_image(img)
+    #     ax.imshow(np.asarray(img))
+    #     ax.set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
+    fig, ax = plt.subplots(tight_layout=True)
+    imgs = F.to_pil_image(make_grid(imgs))
+    ax.imshow(np.asarray(imgs))
 
 def load_mnist(binary=False, size=28):
     transforms_list = [
