@@ -40,7 +40,7 @@ parser.add_argument("--n_classes", type=int, default=10, help="number of classes
 parser.add_argument("--img_size", type=int, default=32, help="size of each image dimension")
 parser.add_argument("--small_img_size", type=int, default=8, help="size of each smaller image dimension")
 parser.add_argument("--channels", type=int, default=1, help="number of image channels")
-parser.add_argument("--sample_interval", type=int, default=400, help="interval between image sampling")
+parser.add_argument("--sample_interval", type=int, default=200, help="interval between image sampling")
 opt = parser.parse_args()
 print(opt)
 
@@ -255,6 +255,8 @@ LongTensor = torch.cuda.LongTensor if cuda else torch.LongTensor
 cols = 8
 grid = create_digit_grid(small_ds, cols=cols)
 static_z = Variable(FloatTensor(np.random.normal(0, 1, (cols * 10, opt.latent_dim))))
+if cuda:
+    grid = grid.cuda()
 
 def write_tboard(writer, it, d_loss, g_loss, info_loss):
     writer.add_scalar('loss/g', g_loss, it)
@@ -378,8 +380,8 @@ for epoch in range(opt.n_epochs):
             "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f] [info loss: %f]"
             % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item(), info_loss.item())
         )
-        batches_done = epoch * len(dataloader) + i
-        if batches_done % opt.sample_interval == 0:
+        # batches_done = epoch * len(dataloader) + i
+        if it % opt.sample_interval == 0:
             # sample_image(n_row=10, batches_done=batches_done)
             write_tboard(writer, it, d_loss.item(), g_loss.item(), info_loss.item())
             
