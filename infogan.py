@@ -5,7 +5,7 @@ import math
 import itertools
 
 import torchvision.transforms as transforms
-from torchvision.utils import save_image
+from torchvision.utils import save_image, make_grid
 
 from torch.utils.data import DataLoader
 from torchvision import datasets
@@ -14,6 +14,10 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+
+from torch.utils.tensorboard import SummaryWriter
+from utils import create_digit_grid, get_logdir, show, display, dict2mdtable
+
 
 os.makedirs("images/static/", exist_ok=True)
 os.makedirs("images/varying_c1/", exist_ok=True)
@@ -32,6 +36,9 @@ parser.add_argument("--n_classes", type=int, default=10, help="number of classes
 parser.add_argument("--img_size", type=int, default=32, help="size of each image dimension")
 parser.add_argument("--channels", type=int, default=1, help="number of image channels")
 parser.add_argument("--sample_interval", type=int, default=400, help="interval between image sampling")
+parser.add_argument("--lambda_cat", type=float, default=1, help="categorical loss weight")
+parser.add_argument("--lambda_con", type=float, default=0.1, help="cont loss weight")
+
 opt = parser.parse_args()
 print(opt)
 
@@ -133,8 +140,8 @@ categorical_loss = torch.nn.CrossEntropyLoss()
 continuous_loss = torch.nn.MSELoss()
 
 # Loss weights
-lambda_cat = 1
-lambda_con = 0.1
+# lambda_cat = 1
+# lambda_con = 0.1
 
 # Initialize generator and discriminator
 generator = Generator()
@@ -186,7 +193,7 @@ static_label = to_categorical(
 static_code = Variable(FloatTensor(np.zeros((opt.n_classes ** 2, opt.code_dim))))
 
 
-def sample_image(n_row, batches_done):
+def sample_image(n_row, batches_done, writer=None):
     """Saves a grid of generated digits ranging from 0 to n_classes"""
     # Static sample
     z = Variable(FloatTensor(np.random.normal(0, 1, (n_row ** 2, opt.latent_dim))))
@@ -202,11 +209,19 @@ def sample_image(n_row, batches_done):
     sample2 = generator(static_z, static_label, c2)
     save_image(sample1.data, "images/varying_c1/%d.png" % batches_done, nrow=n_row, normalize=True)
     save_image(sample2.data, "images/varying_c2/%d.png" % batches_done, nrow=n_row, normalize=True)
+    
+    if writer is not None:
+        writer.add_image('images/static', make_grid(static_sample, normalize=True), batches_done)
+        writer.add_image('images/varying_c1', make_grid(sample1, normalize=True), batches_done)
+        writer.add_image('images/varying_c2', make_grid(sample2, normalize=True), batches_done)
 
 
 # ----------
 #  Training
 # ----------
+
+writer = SummaryWriter(get_logdir(name='infogan'))
+writer.add_text('params', dict2mdtable(vars(opt)), 1)
 
 for epoch in range(opt.n_epochs):
     for i, (imgs, labels) in enumerate(dataloader):
@@ -282,7 +297,7 @@ for epoch in range(opt.n_epochs):
         gen_imgs = generator(z, label_input, code_input)
         _, pred_label, pred_code = discriminator(gen_imgs)
 
-        info_loss = lambda_cat * categorical_loss(pred_label, gt_labels) + lambda_con * continuous_loss(
+        info_loss = opt.lambda_cat * categorical_loss(pred_label, gt_labels) + opt.lambda_con * continuous_loss(
             pred_code, code_input
         )
 
@@ -299,4 +314,4 @@ for epoch in range(opt.n_epochs):
         )
         batches_done = epoch * len(dataloader) + i
         if batches_done % opt.sample_interval == 0:
-            sample_image(n_row=10, batches_done=batches_done)
+            sample_image(n_row=10, batches_done=batches_done, writer=writer)
