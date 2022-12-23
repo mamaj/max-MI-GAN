@@ -8,3 +8,5 @@
 /images
 /data
 /mod_infogan
+/infogan
+/slurm-*
