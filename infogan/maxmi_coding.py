@@ -122,9 +122,9 @@ class Discriminator(nn.Module):
             *discriminator_block(64, 128),
         )
         self.x_conv_blocks = nn.Sequential(
-            nn.BatchNorm2d(32),
-            *generator_block(32, 32, upsample=False),
-            nn.Conv2d(32, opt.channels, 3, stride=1, padding=1),
+            *generator_block(32, 16, upsample=False),
+            *generator_block(16, 8, upsample=False),
+            nn.Conv2d(8, opt.channels, 3, stride=1, padding=1),
             nn.Tanh()
         )
 
@@ -235,6 +235,8 @@ def write_tboard(writer, it, d_loss, g_loss, info_loss):
 # ---------------------------------------------------------------------------- #
 
 writer = SummaryWriter(get_logdir(name='mod_infogan'))
+writer.add_text('params', dict2mdtable(vars(opt)), 1)
+
 
 it = 0
 for epoch in range(opt.n_epochs):
@@ -295,6 +297,7 @@ for epoch in range(opt.n_epochs):
         # ------------------
         # Information Loss
         # ------------------
+        optimizer_info.zero_grad()
         z = (torch.randn((batch_size, opt.dz)))
         gen_imgs = generator(z, x)
         _, x_hat = discriminator(gen_imgs)
