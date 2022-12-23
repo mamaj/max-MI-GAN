@@ -129,3 +129,10 @@ def get_logdir(name='runs_maximgan'):
     current_time = datetime.now().strftime('%b%d_%H-%M-%S')
     return os.path.join(
         name, current_time + '_' + socket.gethostname())
+
+
+def dict2mdtable(d, key='Name', val='Value'):
+    rows = [f'| {key} | {val} |']
+    rows += ['|--|--|']
+    rows += [f'| {k} | {v} |' for k, v in d.items()]
+    return "  \n".join(rows)
