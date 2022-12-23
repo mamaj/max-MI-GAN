@@ -9,4 +9,4 @@
 module load python/3.10
 cd ~/project/max-MI-GAN
 source venv/bin/activate
-python modified_infogan.py --lambda_rec 2
+python infogan.py

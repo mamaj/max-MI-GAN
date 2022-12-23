@@ -21,7 +21,7 @@ import torch
 
 from torch.utils.tensorboard import SummaryWriter
 
-from utils import create_digit_grid, get_logdir, show, display
+from utils import create_digit_grid, get_logdir, show, display, dict2mdtable
 
 # os.makedirs("images/static/", exist_ok=True)
 # os.makedirs("images/varying_c1/", exist_ok=True)
@@ -80,12 +80,12 @@ class Generator(nn.Module):
             nn.Upsample(scale_factor=2),
             nn.Conv2d(128, 128, 3, stride=1, padding=1),
             nn.BatchNorm2d(128, 0.8),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.LeakyReLU(0.2, inplace=False),
             
             nn.Upsample(scale_factor=2),
             nn.Conv2d(128, 64, 3, stride=1, padding=1),
             nn.BatchNorm2d(64, 0.8),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.LeakyReLU(0.2, inplace=False),
             
             nn.Conv2d(64, opt.channels, 3, stride=1, padding=1),
             nn.Tanh(),
@@ -107,18 +107,22 @@ class Discriminator(nn.Module):
         def discriminator_block(in_filters, out_filters, bn=True):
             """Returns layers of each discriminator block"""
             block = [nn.Conv2d(in_filters, out_filters, 3, 2, 1), 
-                     nn.LeakyReLU(0.2, inplace=True),
+                     nn.LeakyReLU(0.2, inplace=False),
                      nn.Dropout2d(0.25)]
             if bn:
                 block.append(nn.BatchNorm2d(out_filters, 0.8))
             return block
 
-        self.conv_blocks = nn.Sequential(
-            *discriminator_block(opt.channels, 16, bn=False),
-            *discriminator_block(16, 32),
-            *discriminator_block(32, 64),
-            *discriminator_block(64, 128),
-        )
+        self.conv_blocks = nn.ModuleList([
+            nn.Sequential(
+                *discriminator_block(opt.channels, 16, bn=False),
+                *discriminator_block(16, 32),
+            ),
+            nn.Sequential(
+                *discriminator_block(32, 64),
+                *discriminator_block(64, 128),
+            )
+        ])
 
         # The height and width of downsampled image
         ds_size = opt.img_size // 2 ** 4
@@ -129,27 +133,28 @@ class Discriminator(nn.Module):
         # self.latent_layer = nn.Sequential(nn.Linear(128 * ds_size ** 2, opt.code_dim))
         
         self.make_small = nn.Sequential(
-            nn.BatchNorm2d(128),
+            # nn.BatchNorm2d(32),
 
-            nn.Upsample(scale_factor=2),
-            nn.Conv2d(128, 128, 3, stride=1, padding=1),
-            nn.BatchNorm2d(128, 0.8),
-            nn.LeakyReLU(0.2, inplace=True),
+            # nn.Upsample(scale_factor=2),
+            nn.Conv2d(32, 16, 3, stride=1, padding=1),
+            nn.BatchNorm2d(16, 0.8),
+            nn.LeakyReLU(0.2, inplace=False),
 
-            nn.Upsample(scale_factor=2),
-            nn.Conv2d(128, 64, 3, stride=1, padding=1),
-            nn.BatchNorm2d(64, 0.8),
-            nn.LeakyReLU(0.2, inplace=True),
+            # nn.Upsample(scale_factor=2),
+            nn.Conv2d(16, 8, 3, stride=1, padding=1),
+            nn.BatchNorm2d(8, 0.8),
+            nn.LeakyReLU(0.2, inplace=False),
 
-            nn.Conv2d(64, opt.channels, 3, stride=1, padding=1),
+            nn.Conv2d(8, opt.channels, 3, stride=1, padding=1),
             nn.Tanh()
         )
 
 
     def forward(self, img):
-        out = self.conv_blocks(img)
-        
+        out = self.conv_blocks[0](img)
         small_img = self.make_small(out)
+        
+        out = self.conv_blocks[1](out)
         validity = self.adv_layer(torch.flatten(out, start_dim=1))
         
         # label = self.aux_layer(out)
@@ -265,7 +270,10 @@ def write_tboard(writer, it, d_loss, g_loss, info_loss):
     
     generator.eval()
     y = generator(static_z, grid)
+    _, x_hat = discriminator(y)
+
     writer.add_image('images/x', make_grid(grid, normalize=True), it)
+    writer.add_image('images/x_hat', make_grid(x_hat, normalize=True), it)
     writer.add_image('images/y', make_grid(y, normalize=True), it)
 
 
@@ -274,6 +282,7 @@ def write_tboard(writer, it, d_loss, g_loss, info_loss):
 # ----------
 
 writer = SummaryWriter(get_logdir(name='mod_infogan'))
+writer.add_text('params', dict2mdtable(vars(opt)), 1)
 
 it = 0
 for epoch in range(opt.n_epochs):
@@ -338,6 +347,8 @@ for epoch in range(opt.n_epochs):
         # ------------------
         # Information Loss
         # ------------------
+        optimizer_info.zero_grad()
+
         z = Variable(FloatTensor(np.random.normal(0, 1, (batch_size, opt.latent_dim))))
         gen_imgs = generator(z, small_imgs)
         _, small_imgs_hat = discriminator(gen_imgs)
